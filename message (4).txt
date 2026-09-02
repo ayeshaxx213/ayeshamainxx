@@ -1,0 +1,2022 @@
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Notification",
+    Text = "ty for buying",
+    Duration = 5
+})
+
+local handler = require(game:GetService("ReplicatedStorage").Modules.GunHandler)
+local plrs = game:GetService("Players")
+local me = plrs.LocalPlayer
+local cam = workspace.CurrentCamera
+local mouse = me:GetMouse()
+local aimPart = "Head"
+local oldFunc = handler.getAim
+
+_G.FOV_RADIUS = 1000
+_G.RevolverBypass = false
+_G.WallCheck = false
+
+_G.ESP_Boxes = false
+_G.ESP_Names = false
+_G.ESP_Color = Color3.fromRGB(105, 175, 255)
+
+_G.Speed_Enabled = false
+_G.Speed_Value = 50
+_G.Speed_Key = Enum.KeyCode.X
+_G.Speed_ToggleEnabled = false
+
+local _0xn1 = 100
+local _0xn8 = 1
+local _0xn9 = 0
+local _0xn11 = 2
+local _0xn14 = 0.05
+local _0xn15 = -0.1
+local _0xn16 = -0.05
+
+local _0x52a0d5 = {
+    BulletSpread = {
+        Enabled = true,
+        Amount = 100
+    }
+}
+
+local _0x9ba38e
+
+_0x9ba38e = hookfunction(math.random, function(...)
+    local _0x5e1a0d = {...}
+
+    if checkcaller() then
+        return _0x9ba38e(...)
+    end
+
+    if (#_0x5e1a0d == _0xn9)
+        or (_0x5e1a0d[_0xn8] == _0xn16 and _0x5e1a0d[_0xn11] == _0xn14)
+        or (_0x5e1a0d[_0xn8] == _0xn15)
+        or (_0x5e1a0d[_0xn8] == _0xn16) then
+
+        if _0x52a0d5.BulletSpread.Enabled then
+            return _0x9ba38e(...) * (_0x52a0d5.BulletSpread.Amount / _0xn1)
+        end
+    end
+
+    return _0x9ba38e(...)
+end)
+
+local function getClosestPart(char)
+    local closest = nil
+    local shortestDist = math.huge
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
+
+    local parts = {
+
+        "Head",
+        "HumanoidRootPart",
+        "LeftUpperLeg",
+        "LeftLowerLeg",
+        "LeftFoot",
+        "RightUpperLeg",
+        "RightLowerLeg",
+        "RightFoot",
+        "LeftUpperArm",
+        "LeftLowerArm",
+        "LeftHand",
+        "RightUpperArm",
+        "RightLowerArm",
+        "RightHand"
+    }
+
+    for _, partName in pairs(parts) do
+        local p = char:FindFirstChild(partName)
+        if p then
+            local screenPos, onScreen = cam:WorldToScreenPoint(p.Position)
+            if onScreen then
+                local dist = (
+                    Vector2.new(screenPos.X, screenPos.Y) - mousePos
+                ).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closest = p
+                end
+            end
+        end
+    end
+
+    return closest or char:FindFirstChild("Head")
+end
+local function getClosest()
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
+    local best = nil
+    local bestDist = _G.FOV_RADIUS
+    for _, v in pairs(plrs:GetPlayers()) do
+        if v ~= me
+            and v.Character
+            and v.Character:FindFirstChild("Humanoid")
+            and v.Character.Humanoid.Health > 0 then
+            local part
+            if aimPart == "Closest Part" then
+                part = getClosestPart(v.Character)
+            elseif aimPart == "Body" then
+                part = v.Character:FindFirstChild("HumanoidRootPart")
+            elseif aimPart == "Left Leg" then
+                part = v.Character:FindFirstChild("LeftUpperLeg")
+                    or v.Character:FindFirstChild("LeftLeg")
+            elseif aimPart == "Right Leg" then
+                part = v.Character:FindFirstChild("RightUpperLeg")
+                    or v.Character:FindFirstChild("RightLeg")
+            elseif aimPart == "Left Arm" then
+                part = v.Character:FindFirstChild("LeftUpperArm")
+                    or v.Character:FindFirstChild("LeftArm")
+            elseif aimPart == "Right Arm" then
+                part = v.Character:FindFirstChild("RightUpperArm")
+                    or v.Character:FindFirstChild("RightArm")
+            else
+                part = v.Character:FindFirstChild("Head")
+            end
+            if part then
+                local screenPos, onScreen =
+                    cam:WorldToScreenPoint(part.Position)
+                if onScreen then
+                    local screenVec =
+                        Vector2.new(screenPos.X, screenPos.Y)
+                    local dist =
+                        (screenVec - mousePos).Magnitude
+                    if dist < bestDist then
+                        if _G.WallCheck then
+                            local ray = Ray.new(
+                                cam.CFrame.Position,
+                                (part.Position - cam.CFrame.Position).Unit * 500
+                            )
+                            local hit, pos =
+                                workspace:FindPartOnRayWithIgnoreList(
+                                    ray,
+                                    {me.Character, cam}
+                                )
+                            if hit and hit:IsDescendantOf(v.Character) then
+                                bestDist = dist
+                                best = part
+                            end
+                        else
+                            bestDist = dist
+                            best = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+handler.getAim = function(origin, maxDist)
+    if _G.RevolverBypass then
+        local currentTool =
+            me.Character and me.Character:FindFirstChildOfClass("Tool")
+        if currentTool
+            and (currentTool.Name == "[Revolver]"
+            or currentTool.Name == "Revolver") then
+            return oldFunc(origin, maxDist)
+        end
+    end
+    local target = getClosest()
+    if target then
+        local dir = (target.Position - origin).Unit
+        local dist = (target.Position - origin).Magnitude
+        return dir, math.min(dist, maxDist or 200)
+    end
+    return oldFunc(origin, maxDist)
+end
+local UIS = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+--// Ayesha Main key system
+local REQUIRED_KEY = "iloveayesha"
+local keyVerified = false
+local keyGui = Instance.new("ScreenGui")
+keyGui.Name = "AyeshaKeySystem"
+keyGui.IgnoreGuiInset = true
+keyGui.ResetOnSpawn = false
+keyGui.Parent = CoreGui
+local keyFrame = Instance.new("Frame")
+keyFrame.Size = UDim2.new(0, 360, 0, 210)
+keyFrame.Position = UDim2.new(0.5, -180, 0.5, -105)
+keyFrame.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+keyFrame.BorderSizePixel = 0
+keyFrame.Parent = keyGui
+Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 12)
+local keyStroke = Instance.new("UIStroke")
+keyStroke.Color = Color3.fromRGB(70, 210, 155)
+keyStroke.Transparency = 0.2
+keyStroke.Thickness = 1.5
+keyStroke.Parent = keyFrame
+local keyTitle = Instance.new("TextLabel")
+keyTitle.Size = UDim2.new(1, -30, 0, 38)
+keyTitle.Position = UDim2.new(0, 15, 0, 18)
+keyTitle.BackgroundTransparency = 1
+keyTitle.Text = "♡ ayesha main >_<"
+keyTitle.TextColor3 = Color3.fromRGB(0, 0, 0)
+keyTitle.TextSize = 22
+keyTitle.Font = Enum.Font.GothamBold
+keyTitle.Parent = keyFrame
+local keySub = Instance.new("TextLabel")
+keySub.Size = UDim2.new(1, -30, 0, 25)
+keySub.Position = UDim2.new(0, 15, 0, 58)
+keySub.BackgroundTransparency = 1
+keySub.Text = "enter the key to continue ♡"
+keySub.TextColor3 = Color3.fromRGB(0, 0, 0)
+keySub.TextSize = 13
+keySub.Font = Enum.Font.Gotham
+keySub.Parent = keyFrame
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(1, -40, 0, 36)
+keyBox.Position = UDim2.new(0, 20, 0, 92)
+keyBox.BackgroundColor3 = Color3.fromRGB(238, 253, 246)
+keyBox.BorderSizePixel = 0
+keyBox.PlaceholderText = "Enter key"
+keyBox.Text = ""
+keyBox.TextColor3 = Color3.fromRGB(0, 0, 0)
+keyBox.PlaceholderColor3 = Color3.fromRGB(95, 145, 125)
+keyBox.Font = Enum.Font.Gotham
+keyBox.TextSize = 13
+keyBox.ClearTextOnFocus = false
+keyBox.Parent = keyFrame
+Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0, 12)
+local keyBoxStroke = Instance.new("UIStroke")
+keyBoxStroke.Color = Color3.fromRGB(70, 210, 155)
+keyBoxStroke.Transparency = 0.45
+keyBoxStroke.Parent = keyBox
+local keyButton = Instance.new("TextButton")
+keyButton.Size = UDim2.new(1, -40, 0, 34)
+keyButton.Position = UDim2.new(0, 20, 0, 140)
+keyButton.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+keyButton.BorderSizePixel = 0
+keyButton.Text = "Unlock ♡"
+keyButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+keyButton.Font = Enum.Font.GothamBold
+keyButton.TextSize = 13
+keyButton.Parent = keyFrame
+Instance.new("UICorner", keyButton).CornerRadius = UDim.new(0, 12)
+local keyStatus = Instance.new("TextLabel")
+keyStatus.Size = UDim2.new(1, -30, 0, 22)
+keyStatus.Position = UDim2.new(0, 15, 1, -27)
+keyStatus.BackgroundTransparency = 1
+keyStatus.Text = ""
+keyStatus.TextColor3 = Color3.fromRGB(0, 0, 0)
+keyStatus.TextSize = 11
+keyStatus.Font = Enum.Font.Gotham
+keyStatus.Parent = keyFrame
+local guiUnlocked = Instance.new("BindableEvent")
+local function verifyKey()
+    if keyBox.Text == REQUIRED_KEY then
+        keyVerified = true
+        keyStatus.Text = "unlocked ♡"
+        keyStatus.TextColor3 = Color3.fromRGB(0, 0, 0)
+        task.wait(0.25)
+        keyGui:Destroy()
+        guiUnlocked:Fire()
+    else
+        keyStatus.Text = "wrong key >_<"
+        keyStatus.TextColor3 = Color3.fromRGB(0, 0, 0)
+        keyBox.Text = ""
+    end
+end
+keyButton.MouseButton1Click:Connect(verifyKey)
+keyBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        verifyKey()
+    end
+end)
+--// Main GUI
+local gui = Instance.new("ScreenGui")
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.Name = "SilentAimUI"
+gui.Parent = CoreGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 600, 0, 470)
+frame.Position = UDim2.new(0.5, -300, 0.5, -235)
+frame.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
+frame.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+frame.Parent = gui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 14)
+frameCorner.Parent = frame
+
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.fromRGB(70, 210, 155)
+frameStroke.Transparency = 0.25
+frameStroke.Thickness = 1.5
+frameStroke.Parent = frame
+
+frame.Visible = false
+
+--// Responsive sizing: keeps the UI fitted on smaller screens
+local frameScale = Instance.new("UIScale")
+frameScale.Parent = frame
+
+local function updateFrameScale()
+    local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
+    if viewport then
+        local scaleX = viewport.X / 650
+        local scaleY = viewport.Y / 520
+        frameScale.Scale = math.clamp(math.min(scaleX, scaleY), 0.65, 1)
+    end
+end
+
+updateFrameScale()
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateFrameScale)
+end
+--// Dragging
+local dragging, dragInput, dragStart, startPos
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+--// Compact top bar
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 68)
+topBar.Position = UDim2.new(0, 0, 0, 0)
+topBar.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+topBar.BorderSizePixel = 0
+topBar.Parent = frame
+
+--// Rounded top bar
+local topBarCorner = Instance.new("UICorner")
+topBarCorner.CornerRadius = UDim.new(0, 14)
+topBarCorner.Parent = topBar
+local sideTitle = Instance.new("TextLabel")
+sideTitle.Size = UDim2.new(0, 165, 0, 24)
+sideTitle.Position = UDim2.new(0, 14, 0, 8)
+sideTitle.Text = "♡ ayesha main"
+sideTitle.TextColor3 = Color3.fromRGB(0, 0, 0)
+sideTitle.TextSize = 15
+sideTitle.Font = Enum.Font.GothamBold
+sideTitle.BackgroundTransparency = 1
+sideTitle.TextXAlignment = Enum.TextXAlignment.Left
+sideTitle.Parent = topBar
+local welcomeLabel = Instance.new("TextLabel")
+welcomeLabel.Size = UDim2.new(0, 175, 0, 24)
+welcomeLabel.Position = UDim2.new(1, -189, 0, 8)
+welcomeLabel.Text = "hello, " .. me.Name .. " ♡"
+welcomeLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+welcomeLabel.TextSize = 12
+welcomeLabel.Font = Enum.Font.GothamBold
+welcomeLabel.BackgroundTransparency = 1
+welcomeLabel.TextXAlignment = Enum.TextXAlignment.Right
+welcomeLabel.TextWrapped = false
+welcomeLabel.TextTruncate = Enum.TextTruncate.None
+welcomeLabel.Parent = topBar
+--// Tabs
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(1, -20, 0, 360)
+tabContainer.Position = UDim2.new(0, 10, 0, 78)
+tabContainer.BackgroundTransparency = 1
+tabContainer.BorderSizePixel = 0
+
+local tabContainerCorner = Instance.new("UICorner")
+tabContainerCorner.CornerRadius = UDim.new(0, 14)
+tabContainerCorner.Parent = tabContainer
+tabContainer.Parent = frame
+--// Scrollable Top Tab Bar
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Name = "TabScrollingFrame"
+ScrollingFrame.Size = UDim2.new(1, -20, 0, 30)
+ScrollingFrame.Position = UDim2.new(0, 10, 0, 31)
+ScrollingFrame.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.X
+ScrollingFrame.ScrollingDirection = Enum.ScrollingDirection.X
+ScrollingFrame.ScrollBarThickness = 3
+ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 210, 155)
+ScrollingFrame.HorizontalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+ScrollingFrame.VerticalScrollBarInset = Enum.ScrollBarInset.None
+ScrollingFrame.ClipsDescendants = true
+ScrollingFrame.Parent = topBar
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Padding = UDim.new(0, 5)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Parent = ScrollingFrame
+local tabPadding = Instance.new("UIPadding")
+tabPadding.PaddingLeft = UDim.new(0, 2)
+tabPadding.PaddingRight = UDim.new(0, 2)
+tabPadding.PaddingTop = UDim.new(0, 3)
+tabPadding.PaddingBottom = UDim.new(0, 3)
+tabPadding.Parent = ScrollingFrame
+local tabs = {
+    SilentAim = Instance.new("Frame"),
+    CamLock = Instance.new("Frame"),
+    ESP = Instance.new("Frame"),
+    Speed = Instance.new("Frame"),
+    Teleport = Instance.new("Frame"),
+    Visual = Instance.new("Frame"),
+    ForceReset = Instance.new("Frame")
+}
+topBar.Size = UDim2.new(1, 0, 0, 68)
+for name, page in pairs(tabs) do
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+    page.BorderSizePixel = 0
+    page.Visible = (name == "SilentAim")
+    page.Parent = tabContainer
+    Instance.new("UICorner", page).CornerRadius = UDim.new(0, 12)
+    local ps = Instance.new("UIStroke")
+    ps.Color = Color3.fromRGB(70, 210, 155)
+    ps.Transparency = 0.35
+    ps.Parent = page
+end
+local tabButtons = {}
+local tabNames = {
+    "♡ Silent Aim",
+    "♡ Cam Lock",
+    "♡ ESP",
+    "♡ Speed",
+    "♡ Teleport",
+    "♡ Visual",
+    "♡ Force Reset"
+
+}
+local tabKeys = {
+    "SilentAim",
+    "CamLock",
+    "ESP",
+    "Speed",
+    "Teleport",
+    "Visual",
+    "ForceReset"
+}
+local function switchTab(targetKey)
+    for key, page in pairs(tabs) do
+        page.Visible = (key == targetKey)
+    end
+    for key, btn in pairs(tabButtons) do
+        if key == targetKey then
+            btn.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+            btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+            btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        end
+    end
+end
+for idx, labelText in ipairs(tabNames) do
+    local key = tabKeys[idx]
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 88, 0, 26)
+    btn.Text = labelText
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.AutoButtonColor = false
+    btn.LayoutOrder = idx
+    btn.Parent = ScrollingFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+    tabButtons[key] = btn
+    btn.MouseEnter:Connect(function()
+        if tabs[key].Visible then
+            return
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(205, 242, 226)
+    end)
+    btn.MouseLeave:Connect(function()
+        if tabs[key].Visible then
+            return
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+    end)
+    btn.MouseButton1Click:Connect(function()
+        switchTab(key)
+    end)
+end
+switchTab("SilentAim")
+--// Page headers
+local function createPageHeader(pageFrame, titleText)
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -30, 0, 30)
+    title.Position = UDim2.new(0, 15, 0, 10)
+    title.Text = titleText
+    title.TextColor3 = Color3.fromRGB(0, 0, 0)
+    title.TextSize = 15
+    title.Font = Enum.Font.GothamBold
+    title.BackgroundTransparency = 1
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = pageFrame
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, -30, 0, 1)
+    line.Position = UDim2.new(0, 15, 0, 40)
+    line.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+    line.BorderSizePixel = 0
+    line.Parent = pageFrame
+end
+createPageHeader(tabs.SilentAim, "Silent Aim Settings")
+createPageHeader(tabs.CamLock, "Camlock Settings")
+createPageHeader(tabs.ESP, "ESP Settings")
+createPageHeader(tabs.Speed, "Speed Hack Settings")
+createPageHeader(tabs.Teleport, "Teleport System")
+createPageHeader(tabs.Visual, "Visual Settings")
+createPageHeader(tabs.ForceReset, "Force Reset Settings")
+
+--// Generic toggle creator
+local function createToggle(parent, labelText, y)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 150, 0, 30)
+    label.Position = UDim2.new(0, 15, 0, y)
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(0, 0, 0)
+    label.TextSize = 13
+    label.Font = Enum.Font.Gotham
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 50, 0, 22)
+    btn.Position = UDim2.new(1, -65, 0, y + 4)
+    btn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+    btn.Text = "OFF"
+    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+    return label, btn
+end
+--// Silent Aim*
+local toggleLabel, toggleBtn =
+    createToggle(tabs.SilentAim, "Revolver Bypass", 55)
+toggleBtn.MouseButton1Click:Connect(function()
+    _G.RevolverBypass = not _G.RevolverBypass
+    if _G.RevolverBypass then
+        toggleBtn.Text = "ON"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+    else
+        toggleBtn.Text = "OFF"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+    end
+end)
+local wallLabel, wallBtn =
+    createToggle(tabs.SilentAim, "Wall Check", 90)
+wallBtn.MouseButton1Click:Connect(function()
+    _G.WallCheck = not _G.WallCheck
+    if _G.WallCheck then
+        wallBtn.Text = "ON"
+        wallBtn.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+    else
+        wallBtn.Text = "OFF"
+        wallBtn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+    end
+end)
+local valueLabel = Instance.new("TextLabel")
+valueLabel.Size = UDim2.new(1, -30, 0, 20)
+valueLabel.Position = UDim2.new(0, 15, 0, 175)
+valueLabel.Text = "FOV Radius: 1000"
+valueLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+valueLabel.TextSize = 13
+valueLabel.Font = Enum.Font.Gotham
+valueLabel.BackgroundTransparency = 1
+valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+valueLabel.Parent = tabs.SilentAim
+local slider = Instance.new("Frame")
+slider.Size = UDim2.new(1, -30, 0, 6)
+slider.Position = UDim2.new(0, 15, 0, 205)
+slider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+slider.BorderSizePixel = 0
+slider.Parent = tabs.SilentAim
+Instance.new("UICorner", slider).CornerRadius = UDim.new(0, 12)
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 14, 0, 14)
+button.Position = UDim2.new(1, -7, 0.5, -7)
+button.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+button.BorderSizePixel = 0
+button.Text = ""
+button.AutoButtonColor = false
+button.Parent = slider
+Instance.new("UICorner", button).CornerRadius = UDim.new(0, 12)
+local spreadLabel = Instance.new("TextLabel")
+spreadLabel.Size = UDim2.new(1, -30, 0, 20)
+spreadLabel.Position = UDim2.new(0, 15, 0, 235)
+spreadLabel.Text = "Bullet Spread: 100"
+spreadLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+spreadLabel.TextSize = 13
+spreadLabel.Font = Enum.Font.Gotham
+spreadLabel.BackgroundTransparency = 1
+spreadLabel.TextXAlignment = Enum.TextXAlignment.Left
+spreadLabel.Parent = tabs.SilentAim
+local spreadSlider = Instance.new("Frame")
+spreadSlider.Size = UDim2.new(1, -30, 0, 6)
+spreadSlider.Position = UDim2.new(0, 15, 0, 265)
+spreadSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+spreadSlider.BorderSizePixel = 0
+spreadSlider.Parent = tabs.SilentAim
+Instance.new("UICorner", spreadSlider).CornerRadius = UDim.new(0, 12)
+local spreadBtn = Instance.new("TextButton")
+spreadBtn.Size = UDim2.new(0, 14, 0, 14)
+spreadBtn.Position = UDim2.new(1, -7, 0.5, -7)
+spreadBtn.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+spreadBtn.BorderSizePixel = 0
+spreadBtn.Text = ""
+spreadBtn.AutoButtonColor = false
+spreadBtn.Parent = spreadSlider
+Instance.new("UICorner", spreadBtn).CornerRadius = UDim.new(0, 12)
+local hitLabel = Instance.new("TextLabel")
+hitLabel.Size = UDim2.new(0, 100, 0, 30)
+hitLabel.Position = UDim2.new(0, 15, 0, 295)
+hitLabel.Text = "Aim Part"
+hitLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+hitLabel.TextSize = 13
+hitLabel.Font = Enum.Font.Gotham
+hitLabel.BackgroundTransparency = 1
+hitLabel.TextXAlignment = Enum.TextXAlignment.Left
+hitLabel.Parent = tabs.SilentAim
+local dropMain = Instance.new("TextButton")
+dropMain.Size = UDim2.new(0, 130, 0, 26)
+dropMain.Position = UDim2.new(1, -145, 0, 297)
+dropMain.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+dropMain.Text = "Head v"
+dropMain.TextColor3 = Color3.fromRGB(0, 0, 0)
+dropMain.Font = Enum.Font.GothamBold
+dropMain.TextSize = 12
+dropMain.ZIndex = 5
+dropMain.AutoButtonColor = false
+dropMain.Parent = tabs.SilentAim
+Instance.new("UICorner", dropMain).CornerRadius = UDim.new(0, 12)
+local dropScroll = Instance.new("ScrollingFrame")
+dropScroll.Size = UDim2.new(0, 130, 0, 100)
+dropScroll.Position = UDim2.new(1, -145, 0, 327)
+dropScroll.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+dropScroll.BorderSizePixel = 0
+dropScroll.Visible = false
+dropScroll.ZIndex = 6
+dropScroll.CanvasSize = UDim2.new(0, 0, 0, 215)
+dropScroll.ScrollBarThickness = 3
+dropScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 210, 155)
+dropScroll.Parent = tabs.SilentAim
+Instance.new("UICorner", dropScroll).CornerRadius = UDim.new(0, 12)
+local partsList = {
+    "Head",
+    "Body",
+    "Left Leg",
+    "Right Leg",
+    "Left Arm",
+    "Right Arm",
+    "Closest Part"
+}
+for idx, partName in ipairs(partsList) do
+    local partBtn = Instance.new("TextButton")
+    partBtn.Size = UDim2.new(1, -8, 0, 26)
+    partBtn.Position = UDim2.new(0, 4, 0, (idx - 1) * 28 + 4)
+    partBtn.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+    partBtn.Text = partName
+    partBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    partBtn.Font = Enum.Font.Gotham
+    partBtn.TextSize = 11
+    partBtn.ZIndex = 7
+    partBtn.AutoButtonColor = false
+    partBtn.Parent = dropScroll
+    Instance.new("UICorner", partBtn).CornerRadius = UDim.new(0, 12)
+    partBtn.MouseEnter:Connect(function()
+        partBtn.BackgroundColor3 = Color3.fromRGB(228, 250, 240)
+    end)
+    partBtn.MouseLeave:Connect(function()
+        partBtn.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+    end)
+    partBtn.MouseButton1Click:Connect(function()
+        aimPart = partName
+        dropMain.Text = partName .. " v"
+        dropScroll.Visible = false
+    end)
+end
+dropMain.MouseButton1Click:Connect(function()
+    dropScroll.Visible = not dropScroll.Visible
+end)
+--// Silent Aim - Show FOV*
+local silentShowFOV = false
+local silentFovLabel, silentFovBtn =
+    createToggle(tabs.SilentAim, "Show FOV", 132)
+local silentFovCircle = Instance.new("Frame")
+silentFovCircle.Name = "SilentAimFOVCircle"
+silentFovCircle.Size = UDim2.fromOffset(
+    _G.FOV_RADIUS * 2,
+    _G.FOV_RADIUS * 2
+)
+silentFovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+silentFovCircle.BackgroundTransparency = 1
+silentFovCircle.BorderSizePixel = 0
+silentFovCircle.Visible = false
+silentFovCircle.ZIndex = 50
+silentFovCircle.Parent = gui
+local silentFovCorner = Instance.new("UICorner")
+silentFovCorner.CornerRadius = UDim.new(1, 0)
+silentFovCorner.Parent = silentFovCircle
+local silentFovStroke = Instance.new("UIStroke")
+silentFovStroke.Thickness = 2
+silentFovStroke.Color = Color3.fromRGB(70, 210, 155)
+silentFovStroke.Parent = silentFovCircle
+silentFovBtn.MouseButton1Click:Connect(function()
+    silentShowFOV = not silentShowFOV
+    if silentShowFOV then
+        silentFovBtn.Text = "ON"
+        silentFovBtn.BackgroundColor3 =
+            Color3.fromRGB(220, 248, 237)
+    else
+        silentFovBtn.Text = "OFF"
+        silentFovBtn.BackgroundColor3 =
+            Color3.fromRGB(220, 248, 237)
+        silentFovCircle.Visible = false
+    end
+end)
+local silentFovRunService =
+    game:GetService("RunService")
+silentFovRunService.RenderStepped:Connect(function()
+    if not gui.Parent then
+        return
+    end
+    if silentShowFOV then
+        local mousePosition = UIS:GetMouseLocation()
+        silentFovCircle.Position =
+            UDim2.fromOffset(
+                mousePosition.X,
+                mousePosition.Y
+            )
+        silentFovCircle.Size =
+            UDim2.fromOffset(
+                _G.FOV_RADIUS * 2,
+                _G.FOV_RADIUS * 2
+            )
+        silentFovCircle.Visible = true
+    else
+        silentFovCircle.Visible = false
+    end
+end)
+--// ESP*
+local espBoxLabel, espBoxBtn =
+    createToggle(tabs.ESP, "ESP Boxes", 55)
+espBoxBtn.MouseButton1Click:Connect(function()
+    _G.ESP_Boxes = not _G.ESP_Boxes
+    espBoxBtn.Text = _G.ESP_Boxes and "ON" or "OFF"
+    espBoxBtn.BackgroundColor3 =
+        _G.ESP_Boxes
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+end)
+local espNameLabel, espNameBtn =
+    createToggle(tabs.ESP, "ESP Names", 95)
+espNameBtn.MouseButton1Click:Connect(function()
+    _G.ESP_Names = not _G.ESP_Names
+    espNameBtn.Text = _G.ESP_Names and "ON" or "OFF"
+    espNameBtn.BackgroundColor3 =
+        _G.ESP_Names
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+end)
+local paletteLabel = Instance.new("TextLabel")
+paletteLabel.Size = UDim2.new(1, -30, 0, 20)
+paletteLabel.Position = UDim2.new(0, 15, 0, 135)
+paletteLabel.Text = "Select ESP Color"
+paletteLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+paletteLabel.TextSize = 13
+paletteLabel.Font = Enum.Font.Gotham
+paletteLabel.BackgroundTransparency = 1
+paletteLabel.TextXAlignment = Enum.TextXAlignment.Left
+paletteLabel.Parent = tabs.ESP
+local colorColors = {
+    Color3.fromRGB(80, 170, 255),
+    Color3.fromRGB(50, 120, 220),
+    Color3.fromRGB(30, 70, 160),
+    Color3.fromRGB(80, 220, 220),
+    Color3.fromRGB(50, 220, 120),
+    Color3.fromRGB(255, 220, 80),
+    Color3.fromRGB(160, 100, 255),
+    Color3.fromRGB(20, 20, 30),
+    Color3.fromRGB(12, 12, 15)
+}
+for idx, colorHex in ipairs(colorColors) do
+    local cBtn = Instance.new("TextButton")
+    cBtn.Size = UDim2.new(0, 26, 0, 26)
+    cBtn.Position = UDim2.new(
+        0,
+        15 + ((idx - 1) % 5) * 34,
+        0,
+        165 + math.floor((idx - 1) / 5) * 34
+    )
+    cBtn.BackgroundColor3 = colorHex
+    cBtn.Text = ""
+    cBtn.AutoButtonColor = false
+    cBtn.Parent = tabs.ESP
+    Instance.new("UICorner", cBtn).CornerRadius = UDim.new(0, 12)
+    local strk = Instance.new("UIStroke")
+    strk.Color = Color3.fromRGB(70, 210, 155)
+    strk.Transparency = 0.45
+    strk.Parent = cBtn
+    cBtn.MouseButton1Click:Connect(function()
+        _G.ESP_Color = colorHex
+    end)
+end
+--// Speed*
+local speedToggleLabel, speedToggleBtn =
+    createToggle(tabs.Speed, "Speed Enabled", 55)
+speedToggleBtn.MouseButton1Click:Connect(function()
+    _G.Speed_ToggleEnabled = not _G.Speed_ToggleEnabled
+    speedToggleBtn.Text =
+        _G.Speed_ToggleEnabled and "ON" or "OFF"
+    speedToggleBtn.BackgroundColor3 =
+        _G.Speed_ToggleEnabled
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+    if not _G.Speed_ToggleEnabled then
+        _G.Speed_Enabled = false
+    end
+end)
+local keyLabel = Instance.new("TextLabel")
+keyLabel.Size = UDim2.new(0, 150, 0, 30)
+keyLabel.Position = UDim2.new(0, 15, 0, 95)
+keyLabel.Text = "Speed Bind"
+keyLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+keyLabel.TextSize = 13
+keyLabel.Font = Enum.Font.Gotham
+keyLabel.BackgroundTransparency = 1
+keyLabel.TextXAlignment = Enum.TextXAlignment.Left
+keyLabel.Parent = tabs.Speed
+local bindBtn = Instance.new("TextButton")
+bindBtn.Size = UDim2.new(0, 70, 0, 22)
+bindBtn.Position = UDim2.new(1, -85, 0, 99)
+bindBtn.BackgroundColor3 = Color3.fromRGB(205, 242, 226)
+bindBtn.Text = "Key: X"
+bindBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+bindBtn.Font = Enum.Font.GothamBold
+bindBtn.TextSize = 11
+bindBtn.AutoButtonColor = false
+bindBtn.Parent = tabs.Speed
+Instance.new("UICorner", bindBtn).CornerRadius = UDim.new(0, 12)
+local isBinding = false
+bindBtn.MouseButton1Click:Connect(function()
+    isBinding = true
+    bindBtn.Text = "Press key"
+end)
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then
+        return
+    end
+    if isBinding
+        and input.UserInputType == Enum.UserInputType.Keyboard then
+        _G.Speed_Key = input.KeyCode
+        bindBtn.Text = "Key: " .. input.KeyCode.Name
+        isBinding = false
+    end
+end)
+local speedValLabel = Instance.new("TextLabel")
+speedValLabel.Size = UDim2.new(1, -30, 0, 20)
+speedValLabel.Position = UDim2.new(0, 15, 0, 135)
+speedValLabel.Text = "Speed Value: 50"
+speedValLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+speedValLabel.TextSize = 13
+speedValLabel.Font = Enum.Font.Gotham
+speedValLabel.BackgroundTransparency = 1
+speedValLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedValLabel.Parent = tabs.Speed
+local speedSlider = Instance.new("Frame")
+speedSlider.Size = UDim2.new(1, -30, 0, 6)
+speedSlider.Position = UDim2.new(0, 15, 0, 165)
+speedSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+speedSlider.BorderSizePixel = 0
+speedSlider.Parent = tabs.Speed
+Instance.new("UICorner", speedSlider).CornerRadius = UDim.new(0, 12)
+local speedSliderBtn = Instance.new("TextButton")
+speedSliderBtn.Size = UDim2.new(0, 14, 0, 14)
+speedSliderBtn.Position = UDim2.new(0, 0, 0.5, -7)
+speedSliderBtn.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+speedSliderBtn.BorderSizePixel = 0
+speedSliderBtn.Text = ""
+speedSliderBtn.AutoButtonColor = false
+speedSliderBtn.Parent = speedSlider
+Instance.new("UICorner", speedSliderBtn).CornerRadius = UDim.new(0, 12)
+--// Teleport*
+local tpLabel = Instance.new("TextLabel")
+tpLabel.Size = UDim2.new(1, -30, 0, 30)
+tpLabel.Position = UDim2.new(0, 15, 0, 55)
+tpLabel.Text = "Target Player Name:"
+tpLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+tpLabel.TextSize = 13
+tpLabel.Font = Enum.Font.Gotham
+tpLabel.BackgroundTransparency = 1
+tpLabel.TextXAlignment = Enum.TextXAlignment.Left
+tpLabel.Parent = tabs.Teleport
+local tpInput = Instance.new("TextBox")
+tpInput.Size = UDim2.new(1, -30, 0, 32)
+tpInput.Position = UDim2.new(0, 15, 0, 90)
+tpInput.BackgroundColor3 = Color3.fromRGB(238, 253, 246)
+tpInput.Text = ""
+tpInput.PlaceholderText = "Enter User Name"
+tpInput.TextColor3 = Color3.fromRGB(0, 0, 0)
+tpInput.PlaceholderColor3 = Color3.fromRGB(95, 145, 125)
+tpInput.Font = Enum.Font.Gotham
+tpInput.TextSize = 12
+tpInput.Parent = tabs.Teleport
+Instance.new("UICorner", tpInput).CornerRadius = UDim.new(0, 12)
+local tpStroke = Instance.new("UIStroke")
+tpStroke.Color = Color3.fromRGB(70, 210, 155)
+tpStroke.Transparency = 0.45
+tpStroke.Parent = tpInput
+local tpActionBtn = Instance.new("TextButton")
+tpActionBtn.Size = UDim2.new(0, 120, 0, 30)
+tpActionBtn.Position = UDim2.new(0, 15, 0, 135)
+tpActionBtn.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+tpActionBtn.Text = "Teleport ♡"
+tpActionBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+tpActionBtn.Font = Enum.Font.GothamBold
+tpActionBtn.TextSize = 13
+tpActionBtn.AutoButtonColor = false
+tpActionBtn.Parent = tabs.Teleport
+Instance.new("UICorner", tpActionBtn).CornerRadius = UDim.new(0, 12)
+local moveConnection1
+local function updateSlider1(input)
+    local percentage = math.clamp(
+        (input.Position.X - slider.AbsolutePosition.X)
+        / slider.AbsoluteSize.X,
+        0,
+        1
+    )
+    button.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+    local finalValue = math.round(percentage * 1000)
+    valueLabel.Text = "FOV Radius: " .. tostring(finalValue)
+    _G.FOV_RADIUS = finalValue
+end
+button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        moveConnection1 = UIS.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == Enum.UserInputType.MouseMovement
+                or moveInput.UserInputType == Enum.UserInputType.Touch then
+                updateSlider1(moveInput)
+            end
+        end)
+    end
+end)
+local moveConnection2
+local function updateSlider2(input)
+    local percentage = math.clamp(
+        (input.Position.X - spreadSlider.AbsolutePosition.X)
+        / spreadSlider.AbsoluteSize.X,
+        0,
+        1
+    )
+    spreadBtn.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+    local finalValue = math.round(percentage * 100)
+    spreadLabel.Text =
+        "Bullet Spread: " .. tostring(finalValue)
+    _0x52a0d5.BulletSpread.Amount = finalValue
+end
+spreadBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        moveConnection2 = UIS.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == Enum.UserInputType.MouseMovement
+                or moveInput.UserInputType == Enum.UserInputType.Touch then
+                updateSlider2(moveInput)
+            end
+        end)
+    end
+end)
+local moveConnection4
+local function updateSpeedSlider(input)
+    local percentage = math.clamp(
+        (input.Position.X - speedSlider.AbsolutePosition.X)
+        / speedSlider.AbsoluteSize.X,
+        0,
+        1
+    )
+    speedSliderBtn.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+    local finalValue =
+        math.round(50 + (percentage * 950))
+    speedValLabel.Text =
+        "Speed Value: " .. tostring(finalValue)
+    _G.Speed_Value = finalValue
+end
+speedSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        moveConnection4 = UIS.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == Enum.UserInputType.MouseMovement
+                or moveInput.UserInputType == Enum.UserInputType.Touch then
+                updateSpeedSlider(moveInput)
+            end
+        end)
+    end
+end)
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then
+        return
+    end
+    if input.KeyCode == _G.Speed_Key
+        and not isBinding
+        and _G.Speed_ToggleEnabled then
+        _G.Speed_Enabled = not _G.Speed_Enabled
+    end
+end)
+tpActionBtn.MouseButton1Click:Connect(function()
+    local targetName = tpInput.Text:lower()
+    if targetName ~= "" then
+        for _, p in pairs(plrs:GetPlayers()) do
+            if p ~= me
+                and p.Name:lower():sub(1, #targetName) == targetName
+                and p.Character
+                and p.Character:FindFirstChild("HumanoidRootPart") then
+                if me.Character
+                    and me.Character:FindFirstChild("HumanoidRootPart") then
+                    me.Character.HumanoidRootPart.CFrame =
+                        p.Character.HumanoidRootPart.CFrame
+                        * CFrame.new(0, 0, 3)
+                end
+                break
+            end
+        end
+    end
+end)
+--==================================================*
+-- CAM LOCK - MAIN GUI*
+--==================================================*
+local RunService = game:GetService("RunService")
+local camLockEnabled = false
+local camLockFOV = 150
+local camLockSmoothness = 0.18
+local showCamLockFOV = false
+local camLockKey = Enum.KeyCode.C
+local changingCamKeybind = false
+-- Cam Lock toggle*
+local camToggleLabel, camToggleBtn =
+    createToggle(tabs.CamLock, "Cam Lock", 55)
+local function updateCamLockButton()
+    camToggleBtn.Text = camLockEnabled and "ON" or "OFF"
+    camToggleBtn.BackgroundColor3 =
+        camLockEnabled
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+end
+camToggleBtn.MouseButton1Click:Connect(function()
+    camLockEnabled = not camLockEnabled
+    updateCamLockButton()
+end)
+-- Keybind*
+local camKeyLabel = Instance.new("TextLabel")
+camKeyLabel.Size = UDim2.new(0, 150, 0, 30)
+camKeyLabel.Position = UDim2.new(0, 15, 0, 95)
+camKeyLabel.BackgroundTransparency = 1
+camKeyLabel.Text = "Keybind"
+camKeyLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+camKeyLabel.TextSize = 13
+camKeyLabel.Font = Enum.Font.Gotham
+camKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+camKeyLabel.Parent = tabs.CamLock
+local camKeyButton = Instance.new("TextButton")
+camKeyButton.Size = UDim2.new(0, 100, 0, 26)
+camKeyButton.Position = UDim2.new(1, -115, 0, 97)
+camKeyButton.BackgroundColor3 = Color3.fromRGB(205, 242, 226)
+camKeyButton.BorderSizePixel = 0
+camKeyButton.Text = "Key: " .. camLockKey.Name
+camKeyButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+camKeyButton.TextSize = 11
+camKeyButton.Font = Enum.Font.GothamBold
+camKeyButton.AutoButtonColor = false
+camKeyButton.Parent = tabs.CamLock
+Instance.new("UICorner", camKeyButton).CornerRadius = UDim.new(0, 12)
+camKeyButton.MouseButton1Click:Connect(function()
+    if changingCamKeybind then
+        return
+    end
+    changingCamKeybind = true
+    camKeyButton.Text = "Press key"
+end)
+-- FOV label*
+local camFovLabel = Instance.new("TextLabel")
+camFovLabel.Size = UDim2.new(1, -30, 0, 20)
+camFovLabel.Position = UDim2.new(0, 15, 0, 135)
+camFovLabel.BackgroundTransparency = 1
+camFovLabel.Text = "FOV: " .. camLockFOV
+camFovLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+camFovLabel.TextSize = 13
+camFovLabel.Font = Enum.Font.Gotham
+camFovLabel.TextXAlignment = Enum.TextXAlignment.Left
+camFovLabel.Parent = tabs.CamLock
+-- FOV slider*
+local camFovSlider = Instance.new("Frame")
+camFovSlider.Size = UDim2.new(1, -30, 0, 6)
+camFovSlider.Position = UDim2.new(0, 15, 0, 165)
+camFovSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+camFovSlider.BorderSizePixel = 0
+camFovSlider.Parent = tabs.CamLock
+Instance.new("UICorner", camFovSlider).CornerRadius =
+    UDim.new(0, 12)
+local camFovButton = Instance.new("TextButton")
+camFovButton.Size = UDim2.new(0, 14, 0, 14)
+camFovButton.Position =
+    UDim2.new((camLockFOV - 25) / 475, -7, 0.5, -7)
+camFovButton.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+camFovButton.BorderSizePixel = 0
+camFovButton.Text = ""
+camFovButton.AutoButtonColor = false
+camFovButton.Parent = camFovSlider
+Instance.new("UICorner", camFovButton).CornerRadius =
+    UDim.new(0, 12)
+-- Smoothness label*
+local camSmoothLabel = Instance.new("TextLabel")
+camSmoothLabel.Size = UDim2.new(1, -30, 0, 20)
+camSmoothLabel.Position = UDim2.new(0, 15, 0, 190)
+camSmoothLabel.BackgroundTransparency = 1
+camSmoothLabel.Text =
+    "Smoothness: " ..
+    string.format("%.2f", camLockSmoothness)
+camSmoothLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+camSmoothLabel.TextSize = 13
+camSmoothLabel.Font = Enum.Font.Gotham
+camSmoothLabel.TextXAlignment = Enum.TextXAlignment.Left
+camSmoothLabel.Parent = tabs.CamLock
+-- Smoothness slider*
+local camSmoothSlider = Instance.new("Frame")
+camSmoothSlider.Size = UDim2.new(1, -30, 0, 6)
+camSmoothSlider.Position = UDim2.new(0, 15, 0, 220)
+camSmoothSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+camSmoothSlider.BorderSizePixel = 0
+camSmoothSlider.Parent = tabs.CamLock
+Instance.new("UICorner", camSmoothSlider).CornerRadius =
+    UDim.new(0, 12)
+local camSmoothButton = Instance.new("TextButton")
+camSmoothButton.Size = UDim2.new(0, 14, 0, 14)
+camSmoothButton.Position =
+    UDim2.new(camLockSmoothness, -7, 0.5, -7)
+camSmoothButton.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+camSmoothButton.BorderSizePixel = 0
+camSmoothButton.Text = ""
+camSmoothButton.AutoButtonColor = false
+camSmoothButton.Parent = camSmoothSlider
+Instance.new("UICorner", camSmoothButton).CornerRadius =
+    UDim.new(0, 12)
+-- Show FOV*
+local showFovLabel, showFovBtn =
+    createToggle(tabs.CamLock, "Show FOV", 245)
+-- FOV circle*
+local camFovCircle = Instance.new("Frame")
+camFovCircle.Name = "CamLockFOVCircle"
+camFovCircle.Size =
+    UDim2.fromOffset(camLockFOV * 2, camLockFOV * 2)
+camFovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+camFovCircle.BackgroundTransparency = 1
+camFovCircle.BorderSizePixel = 0
+camFovCircle.Visible = false
+camFovCircle.Parent = gui
+Instance.new("UICorner", camFovCircle).CornerRadius =
+    UDim.new(1, 0)
+local camFovStroke = Instance.new("UIStroke")
+camFovStroke.Thickness = 2
+camFovStroke.Color = Color3.fromRGB(70, 210, 155)
+camFovStroke.Parent = camFovCircle
+showFovBtn.MouseButton1Click:Connect(function()
+    showCamLockFOV = not showCamLockFOV
+    showFovBtn.Text =
+        showCamLockFOV and "ON" or "OFF"
+    showFovBtn.BackgroundColor3 =
+        showCamLockFOV
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+end)
+-- FOV dragging*
+local camFovDragging = false
+local camSmoothDragging = false
+local function updateCamFOV(input)
+    local width = camFovSlider.AbsoluteSize.X
+    if width <= 0 then
+        return
+    end
+    local percentage = math.clamp(
+        (input.Position.X - camFovSlider.AbsolutePosition.X)
+        / width,
+        0,
+        1
+    )
+    camLockFOV =
+        math.floor(25 + percentage * 475)
+    camFovLabel.Text =
+        "FOV: " .. camLockFOV
+    camFovButton.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+    camFovCircle.Size =
+        UDim2.fromOffset(
+            camLockFOV * 2,
+            camLockFOV * 2
+        )
+end
+local function updateCamSmoothness(input)
+    local width = camSmoothSlider.AbsoluteSize.X
+    if width <= 0 then
+        return
+    end
+    local percentage = math.clamp(
+        (input.Position.X - camSmoothSlider.AbsolutePosition.X)
+        / width,
+        0,
+        1
+    )
+    camLockSmoothness =
+        math.floor(percentage * 100) / 100
+    camSmoothLabel.Text =
+        "Smoothness: " ..
+        string.format("%.2f", camLockSmoothness)
+    camSmoothButton.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+end
+camFovButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        camFovDragging = true
+    end
+end)
+camFovSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        camFovDragging = true
+        updateCamFOV(input)
+    end
+end)
+camSmoothButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        camSmoothDragging = true
+    end
+end)
+camSmoothSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        camSmoothDragging = true
+        updateCamSmoothness(input)
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        if camFovDragging then
+            updateCamFOV(input)
+        end
+        if camSmoothDragging then
+            updateCamSmoothness(input)
+        end
+    end
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        camFovDragging = false
+        camSmoothDragging = false
+    end
+end)
+-- Keybind handling*
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then
+        return
+    end
+    if changingCamKeybind then
+        if input.UserInputType == Enum.UserInputType.Keyboard
+            and input.KeyCode ~= Enum.KeyCode.Unknown then
+            camLockKey = input.KeyCode
+            changingCamKeybind = false
+            camKeyButton.Text =
+                "Key: " .. camLockKey.Name
+        end
+        return
+    end
+    if input.UserInputType == Enum.UserInputType.Keyboard
+        and input.KeyCode == camLockKey then
+        camLockEnabled = not camLockEnabled
+        updateCamLockButton()
+    end
+end)
+-- Find closest target*
+local function getClosestCharacter()
+    local mousePosition = UIS:GetMouseLocation()
+    local closestCharacter = nil
+    local closestDistance = camLockFOV
+    for _, target in ipairs(plrs:GetPlayers()) do
+        if target ~= me then
+            local character = target.Character
+            local humanoid = character
+                and character:FindFirstChildOfClass("Humanoid")
+            local head = character
+                and character:FindFirstChild("Head")
+            if humanoid
+                and head
+                and humanoid.Health > 0 then
+                local screenPosition, visible =
+                    cam:WorldToViewportPoint(head.Position)
+                if visible then
+                    local distance =
+                        (
+                            Vector2.new(
+                                screenPosition.X,
+                                screenPosition.Y
+                            ) - mousePosition
+                        ).Magnitude
+                    if distance <= closestDistance then
+                        closestDistance = distance
+                        closestCharacter = character
+                    end
+                end
+            end
+        end
+    end
+    return closestCharacter
+end
+-- Camera lock*
+RunService.RenderStepped:Connect(function()
+    if showCamLockFOV then
+        local mousePosition =
+            UIS:GetMouseLocation()
+        camFovCircle.Position =
+            UDim2.fromOffset(
+                mousePosition.X,
+                mousePosition.Y
+            )
+        camFovCircle.Visible = true
+    else
+        camFovCircle.Visible = false
+    end
+    if camLockEnabled then
+        local character =
+            getClosestCharacter()
+        if character then
+            local head =
+                character:FindFirstChild("Head")
+            if head then
+                local cameraPosition =
+                    cam.CFrame.Position
+                local targetCFrame =
+                    CFrame.lookAt(
+                        cameraPosition,
+                        head.Position
+                    )
+                cam.CFrame =
+                    cam.CFrame:Lerp(
+                        targetCFrame,
+                        math.clamp(
+                            camLockSmoothness,
+                            0.01,
+                            1
+                        )
+                    )
+            end
+        end
+    end
+end)
+updateCamLockButton()
+
+--// ESP*
+local function createESP(player)
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Thickness = 1.5
+    box.Filled = false
+    local name = Drawing.new("Text")
+    name.Visible = false
+    name.Size = 16
+    name.Center = true
+    name.Outline = true
+    name.Font = Drawing.Fonts.UI
+    local conn
+    conn = game:GetService("RunService").RenderStepped:Connect(function()
+        if player
+            and player.Character
+            and player.Character:FindFirstChild("HumanoidRootPart")
+            and player.Character:FindFirstChild("Humanoid")
+            and player.Character.Humanoid.Health > 0 then
+            local rootPart = player.Character.HumanoidRootPart
+            local head =
+                player.Character:FindFirstChild("Head")
+                or rootPart
+            local rootPos, rootOnScreen =
+                cam:WorldToViewportPoint(rootPart.Position)
+            if rootOnScreen then
+                local headPos =
+                    cam:WorldToViewportPoint(
+                        head.Position + Vector3.new(0, 0.5, 0)
+                    )
+                local legPos =
+                    cam:WorldToViewportPoint(
+                        rootPart.Position - Vector3.new(0, 3, 0)
+                    )
+                local boxHeight =
+                    math.abs(headPos.Y - legPos.Y)
+                local boxWidth = boxHeight / 2
+                if _G.ESP_Boxes then
+                    box.Size =
+                        Vector2.new(boxWidth, boxHeight)
+                    box.Position =
+                        Vector2.new(
+                            rootPos.X - boxWidth / 2,
+                            rootPos.Y - boxHeight / 2
+                        )
+                    box.Color = _G.ESP_Color
+                    box.Visible = true
+                else
+                    box.Visible = false
+                end
+                if _G.ESP_Names then
+                    name.Position =
+                        Vector2.new(
+                            rootPos.X,
+                            rootPos.Y - boxHeight / 2 - 18
+                        )
+                    name.Text = player.Name
+                    name.Color = _G.ESP_Color
+                    name.Visible = true
+                else
+                    name.Visible = false
+                end
+            else
+                box.Visible = false
+                name.Visible = false
+            end
+        else
+            box.Visible = false
+            name.Visible = false
+            if not player or not player.Parent then
+                box:Remove()
+                name:Remove()
+                conn:Disconnect()
+            end
+        end
+    end)
+end
+for _, p in pairs(plrs:GetPlayers()) do
+    if p ~= me then
+        createESP(p)
+    end
+end
+plrs.PlayerAdded:Connect(function(p)
+    if p ~= me then
+        createESP(p)
+    end
+end)
+--// Speed*
+game:GetService("RunService").Heartbeat:Connect(function()
+    if _G.Speed_Enabled
+        and me.Character
+        and me.Character:FindFirstChild("Humanoid") then
+        me.Character.Humanoid.WalkSpeed = _G.Speed_Value
+    elseif not _G.Speed_Enabled
+        and me.Character
+        and me.Character:FindFirstChild("Humanoid") then
+        if me.Character.Humanoid.WalkSpeed == _G.Speed_Value then
+            me.Character.Humanoid.WalkSpeed = 16
+        end
+    end
+end)
+--// Right Shift UI toggle*
+local uiVisible = false
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then
+        return
+    end
+    if keyVerified
+        and input.KeyCode == Enum.KeyCode.RightShift then
+        uiVisible = not uiVisible
+        frame.Visible = uiVisible
+        if not uiVisible then
+            dropScroll.Visible = false
+        end
+    end
+end)
+guiUnlocked.Event:Connect(function()
+    uiVisible = true
+    frame.Visible = true
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        if moveConnection1 then
+            moveConnection1:Disconnect()
+            moveConnection1 = nil
+        end
+        if moveConnection2 then
+            moveConnection2:Disconnect()
+            moveConnection2 = nil
+        end
+        if moveConnection4 then
+            moveConnection4:Disconnect()
+            moveConnection4 = nil
+        end
+    end
+end)
+--// Cute blue entrance animation*
+local TweenService = game:GetService("TweenService")
+local originalSize = frame.Size
+frame.Size = UDim2.new(
+    originalSize.X.Scale,
+    originalSize.X.Offset - 20,
+    originalSize.Y.Scale,
+    originalSize.Y.Offset - 20
+)
+TweenService:Create(
+    frame,
+    TweenInfo.new(
+        0.3,
+        Enum.EasingStyle.Back,
+        Enum.EasingDirection.Out
+    ),
+    {
+        Size = originalSize
+    }
+):Play()
+--// Fog Toggle + Fog Color + Rainbow + Reset Lighting*
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local fogEnabled = false
+local rainbowFog = false
+local rainbowConnection
+local fogColors = {
+    Color3.fromRGB(12, 12, 15),
+    Color3.fromRGB(100, 180, 255),
+    Color3.fromRGB(180, 100, 255),
+    Color3.fromRGB(255, 100, 180),
+    Color3.fromRGB(255, 100, 100),
+    Color3.fromRGB(255, 180, 80),
+    Color3.fromRGB(100, 255, 150)
+}
+--// Fog Toggle*
+local fogLabel, fogBtn =
+    createToggle(tabs.Visual, "Fog", 55)
+fogBtn.MouseButton1Click:Connect(function()
+    fogEnabled = not fogEnabled
+    if fogEnabled then
+        fogBtn.Text = "ON"
+        fogBtn.BackgroundColor3 = Color3.fromRGB(248, 255, 252)
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 250
+    else
+        fogBtn.Text = "OFF"
+        fogBtn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 100000
+    end
+end)
+--// Fog Color*
+local colorLabel = Instance.new("TextLabel")
+colorLabel.Size = UDim2.new(1, -30, 0, 20)
+colorLabel.Position = UDim2.new(0, 15, 0, 95)
+colorLabel.Text = "Fog Color"
+colorLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+colorLabel.TextSize = 13
+colorLabel.Font = Enum.Font.Gotham
+colorLabel.BackgroundTransparency = 1
+colorLabel.TextXAlignment = Enum.TextXAlignment.Left
+colorLabel.Parent = tabs.Visual
+for i, color in ipairs(fogColors) do
+    local colorButton = Instance.new("TextButton")
+    colorButton.Size = UDim2.new(0, 26, 0, 26)
+    colorButton.Position = UDim2.new(
+        0,
+        15 + ((i - 1) % 7) * 34,
+        0,
+        125
+    )
+    colorButton.BackgroundColor3 = color
+    colorButton.Text = ""
+    colorButton.AutoButtonColor = false
+    colorButton.Parent = tabs.Visual
+    Instance.new("UICorner", colorButton).CornerRadius = UDim.new(0, 12)
+    colorButton.MouseButton1Click:Connect(function()
+        rainbowFog = false
+        if rainbowConnection then
+            rainbowConnection:Disconnect()
+            rainbowConnection = nil
+        end
+        Lighting.FogColor = color
+        if fogEnabled then
+            Lighting.FogStart = 0
+            Lighting.FogEnd = 250
+        end
+    end)
+end
+--// Fog Thickness Slider*
+local fogThicknessLabel = Instance.new("TextLabel")
+fogThicknessLabel.Size = UDim2.new(1, -30, 0, 20)
+fogThicknessLabel.Position = UDim2.new(0, 15, 0, 155)
+fogThicknessLabel.Text = "Fog Thickness: 250"
+fogThicknessLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+fogThicknessLabel.TextSize = 13
+fogThicknessLabel.Font = Enum.Font.Gotham
+fogThicknessLabel.BackgroundTransparency = 1
+fogThicknessLabel.TextXAlignment = Enum.TextXAlignment.Left
+fogThicknessLabel.Parent = tabs.Visual
+local fogSlider = Instance.new("Frame")
+fogSlider.Size = UDim2.new(1, -30, 0, 6)
+fogSlider.Position = UDim2.new(0, 15, 0, 185)
+fogSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+fogSlider.BorderSizePixel = 0
+fogSlider.Parent = tabs.Visual
+Instance.new("UICorner", fogSlider).CornerRadius = UDim.new(0, 12)
+local fogSliderBtn = Instance.new("TextButton")
+fogSliderBtn.Size = UDim2.new(0, 14, 0, 14)
+fogSliderBtn.Position = UDim2.new(0.75, -7, 0.5, -7)
+fogSliderBtn.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+fogSliderBtn.BorderSizePixel = 0
+fogSliderBtn.Text = ""
+fogSliderBtn.AutoButtonColor = false
+fogSliderBtn.Parent = fogSlider
+Instance.new("UICorner", fogSliderBtn).CornerRadius = UDim.new(0, 12)
+local fogThickness = 250
+local fogMoveConnection
+local function updateFogSlider(input)
+    local percentage = math.clamp(
+        (input.Position.X - fogSlider.AbsolutePosition.X)
+        / fogSlider.AbsoluteSize.X,
+        0,
+        1
+    )
+    fogSliderBtn.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+    -- Smaller FogEnd = thicker fog*
+    fogThickness = math.round(50 + (percentage * 950))
+    fogThicknessLabel.Text =
+        "Fog Thickness: " .. tostring(fogThickness)
+    if fogEnabled then
+        Lighting.FogEnd = fogThickness
+    end
+end
+fogSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        fogMoveConnection = UIS.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == Enum.UserInputType.MouseMovement
+                or moveInput.UserInputType == Enum.UserInputType.Touch then
+                updateFogSlider(moveInput)
+            end
+        end)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        if fogMoveConnection then
+            fogMoveConnection:Disconnect()
+            fogMoveConnection = nil
+        end
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        if fogMoveConnection then
+            fogMoveConnection:Disconnect()
+            fogMoveConnection = nil
+        end
+    end
+end)
+
+--// Saturation Slider
+
+local Lighting = game:GetService("Lighting")
+local UIS = game:GetService("UserInputService")
+
+local colorCorrection = Lighting:FindFirstChild("AyeshaColorCorrection")
+
+if not colorCorrection then
+    colorCorrection = Instance.new("ColorCorrectionEffect")
+    colorCorrection.Name = "AyeshaColorCorrection"
+    colorCorrection.Parent = Lighting
+end
+
+local saturationEnabled = false
+local saturationValue = 1000
+
+-- Remove old saturation UI if the script was executed again
+local oldSaturationLabel = tabs.Visual:FindFirstChild("AyeshaSaturationLabel")
+if oldSaturationLabel then
+    oldSaturationLabel:Destroy()
+end
+
+local oldSaturationSlider = tabs.Visual:FindFirstChild("AyeshaSaturationSlider")
+if oldSaturationSlider then
+    oldSaturationSlider:Destroy()
+end
+
+--// Enable Saturation Toggle
+
+local saturationEnableLabel, saturationEnableBtn =
+    createToggle(tabs.Visual, "Enable Saturation", 255)
+
+saturationEnableBtn.Text = "OFF"
+saturationEnableBtn.BackgroundColor3 = Color3.fromRGB(255, 222, 234)
+
+--// Saturation Label
+
+local saturationLabel = Instance.new("TextLabel")
+saturationLabel.Name = "AyeshaSaturationLabel"
+saturationLabel.Size = UDim2.new(1, -30, 0, 20)
+saturationLabel.Position = UDim2.new(0, 15, 0, 295)
+saturationLabel.Text = "Saturation: " .. tostring(saturationValue)
+saturationLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+saturationLabel.TextSize = 13
+saturationLabel.Font = Enum.Font.Gotham
+saturationLabel.BackgroundTransparency = 1
+saturationLabel.TextXAlignment = Enum.TextXAlignment.Left
+saturationLabel.Parent = tabs.Visual
+
+--// Saturation Slider
+
+local saturationSlider = Instance.new("Frame")
+saturationSlider.Name = "AyeshaSaturationSlider"
+saturationSlider.Size = UDim2.new(1, -30, 0, 6)
+saturationSlider.Position = UDim2.new(0, 15, 0, 325)
+saturationSlider.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+saturationSlider.BorderSizePixel = 0
+saturationSlider.Parent = tabs.Visual
+
+local sliderCorner = Instance.new("UICorner")
+sliderCorner.CornerRadius = UDim.new(0, 3)
+sliderCorner.Parent = saturationSlider
+
+--// Slider Button
+
+local saturationButton = Instance.new("TextButton")
+saturationButton.Name = "AyeshaSaturationButton"
+saturationButton.Size = UDim2.new(0, 14, 0, 14)
+
+-- 1000 starts in the middle
+saturationButton.Position = UDim2.new(0.5, -7, 0.5, -7)
+
+saturationButton.BackgroundColor3 = Color3.fromRGB(70, 210, 155)
+saturationButton.BorderSizePixel = 0
+saturationButton.Text = ""
+saturationButton.AutoButtonColor = false
+saturationButton.Parent = saturationSlider
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(1, 0)
+buttonCorner.Parent = saturationButton
+
+--// Start disabled
+colorCorrection.Saturation = 0
+
+--// Apply Saturation
+
+local function applySaturation()
+    if saturationEnabled then
+        -- Convert UI value 1-2000 into Roblox -1 to 1
+        colorCorrection.Saturation =
+            -1 + ((saturationValue - 1) / 1999) * 2
+    else
+        colorCorrection.Saturation = 0
+    end
+end
+
+--// Enable / Disable
+
+saturationEnableBtn.MouseButton1Click:Connect(function()
+    saturationEnabled = not saturationEnabled
+
+    if saturationEnabled then
+        saturationEnableBtn.Text = "ON"
+        saturationEnableBtn.BackgroundColor3 =
+            Color3.fromRGB(12, 12, 15)
+
+        applySaturation()
+    else
+        saturationEnableBtn.Text = "OFF"
+        saturationEnableBtn.BackgroundColor3 =
+            Color3.fromRGB(55, 5, 35)
+
+        colorCorrection.Saturation = 0
+    end
+end)
+
+--// Slider Updating
+
+local saturationDragging = false
+
+local function updateSaturation(input)
+    local width = saturationSlider.AbsoluteSize.X
+
+    if width <= 0 then
+        return
+    end
+
+    local percentage = math.clamp(
+        (input.Position.X - saturationSlider.AbsolutePosition.X) / width,
+        0,
+        1
+    )
+
+    saturationButton.Position =
+        UDim2.new(percentage, -7, 0.5, -7)
+
+    saturationValue =
+        math.round(1 + percentage * 1999)
+
+    saturationLabel.Text =
+        "Saturation: " .. tostring(saturationValue)
+
+    applySaturation()
+end
+
+--// Start Dragging
+
+saturationButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        saturationDragging = true
+
+        updateSaturation(input)
+    end
+end)
+
+--// Continue Dragging
+
+UIS.InputChanged:Connect(function(input)
+    if not saturationDragging then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        updateSaturation(input)
+    end
+end)
+
+--// Stop Dragging
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        saturationDragging = false
+    end
+end)
+
+--// Rainbow Fog*
+local rainbowLabel, rainbowBtn =
+    createToggle(tabs.Visual, "Rainbow Fog", 220)
+rainbowBtn.MouseButton1Click:Connect(function()
+    rainbowFog = not rainbowFog
+    rainbowBtn.Text = rainbowFog and "ON" or "OFF"
+    rainbowBtn.BackgroundColor3 = rainbowFog
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+    if rainbowFog then
+        if rainbowConnection then
+            rainbowConnection:Disconnect()
+        end
+        rainbowConnection = RunService.RenderStepped:Connect(function()
+            if fogEnabled then
+                Lighting.FogColor =
+                    Color3.fromHSV((tick() % 5) / 5, 1, 1)
+            end
+        end)
+    else
+        if rainbowConnection then
+            rainbowConnection:Disconnect()
+            rainbowConnection = nil
+        end
+    end
+end)
+--// Reset Lighting*
+local resetButton = Instance.new("TextButton")
+resetButton.Size = UDim2.new(0, 130, 0, 30)
+resetButton.Position = UDim2.new(0, 15, 0, 215)
+resetButton.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+resetButton.Text = "Reset Lighting"
+resetButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+resetButton.Font = Enum.Font.GothamBold
+resetButton.TextSize = 12
+resetButton.AutoButtonColor = false
+resetButton.Parent = tabs.Visual
+Instance.new("UICorner", resetButton).CornerRadius = UDim.new(0, 12)
+resetButton.MouseButton1Click:Connect(function()
+    fogEnabled = false
+    rainbowFog = false
+    if rainbowConnection then
+        rainbowConnection:Disconnect()
+        rainbowConnection = nil
+    end
+    fogBtn.Text = "OFF"
+    fogBtn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+    rainbowBtn.Text = "OFF"
+    rainbowBtn.BackgroundColor3 = Color3.fromRGB(220, 248, 237)
+    Lighting.FogStart = 0
+    Lighting.FogEnd = 100000
+    Lighting.FogColor = Color3.fromRGB(192, 192, 192)
+end)
+
+
+--// Force Reset
+local forceResetEnabled = false
+local forceResetKey = Enum.KeyCode.R
+local changingResetKey = false
+
+local resetToggleLabel, resetToggleBtn =
+    createToggle(tabs.ForceReset, "Force Reset", 55)
+
+resetToggleBtn.MouseButton1Click:Connect(function()
+    forceResetEnabled = not forceResetEnabled
+
+    resetToggleBtn.Text = forceResetEnabled and "ON" or "OFF"
+    resetToggleBtn.BackgroundColor3 = forceResetEnabled
+        and Color3.fromRGB(70, 210, 155)
+        or Color3.fromRGB(220, 248, 237)
+end)
+
+local resetKeyLabel = Instance.new("TextLabel")
+resetKeyLabel.Size = UDim2.new(0, 150, 0, 30)
+resetKeyLabel.Position = UDim2.new(0, 15, 0, 95)
+resetKeyLabel.BackgroundTransparency = 1
+resetKeyLabel.Text = "Reset Key"
+resetKeyLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+resetKeyLabel.TextSize = 13
+resetKeyLabel.Font = Enum.Font.Gotham
+resetKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+resetKeyLabel.Parent = tabs.ForceReset
+
+local resetKeyBtn = Instance.new("TextButton")
+resetKeyBtn.Size = UDim2.new(0, 100, 0, 26)
+resetKeyBtn.Position = UDim2.new(1, -115, 0, 97)
+resetKeyBtn.BackgroundColor3 = Color3.fromRGB(205, 242, 226)
+resetKeyBtn.BorderSizePixel = 0
+resetKeyBtn.Text = "Key: R"
+resetKeyBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+resetKeyBtn.TextSize = 11
+resetKeyBtn.Font = Enum.Font.GothamBold
+resetKeyBtn.AutoButtonColor = false
+resetKeyBtn.Parent = tabs.ForceReset
+
+Instance.new("UICorner", resetKeyBtn).CornerRadius = UDim.new(0, 12)
+
+resetKeyBtn.MouseButton1Click:Connect(function()
+    changingResetKey = true
+    resetKeyBtn.Text = "Press key"
+end)
+
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then
+        return
+    end
+
+    if changingResetKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard
+            and input.KeyCode ~= Enum.KeyCode.Unknown then
+
+            forceResetKey = input.KeyCode
+            resetKeyBtn.Text = "Key: " .. forceResetKey.Name
+            changingResetKey = false
+        end
+
+        return
+    end
+
+    if forceResetEnabled
+        and input.UserInputType == Enum.UserInputType.Keyboard
+        and input.KeyCode == forceResetKey then
+
+        local character = me.Character
+        local humanoid = character
+            and character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid then
+            humanoid.Health = 0
+        end
+    end
+end)
